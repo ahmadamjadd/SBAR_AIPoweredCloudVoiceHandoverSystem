@@ -1,4 +1,4 @@
-# AI-Powered SBAR Voice Handover System
+# AI-Powered Cloud SBAR Voice Handover System
 
 An end-to-end, serverless cloud architecture designed to modernize clinical shift handovers in hospitals. This system allows doctors and nurses to verbally record patient handovers (supporting English and "Minglish") and automatically converts them into structured SBAR (Situation, Background, Assessment, Recommendation) formats using AI.
 
