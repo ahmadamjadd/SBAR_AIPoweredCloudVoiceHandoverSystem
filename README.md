@@ -35,19 +35,3 @@ This project is built heavily around **AWS Serverless** technologies to ensure h
 - **Transcription Engine:** Custom API integration capable of parsing "Minglish" phonetic text accurately.
 - **LLM Structuring:** System-prompted AI generation that identifies medical entities and categorizes them strictly into the `Situation`, `Background`, `Assessment`, and `Recommendation` schema.
 
-## 📦 Local Development
-
-### Prerequisites
-- Node.js (v18+)
-- Python (v3.12+)
-- AWS CLI configured with appropriate IAM permissions
-
-### Running the Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### Running the Backend
-The backend utilizes AWS Lambda. Code can be found in the `/backend` directory and should be deployed via AWS SAM, Serverless Framework, or standard zip deployments depending on your CI/CD setup.
