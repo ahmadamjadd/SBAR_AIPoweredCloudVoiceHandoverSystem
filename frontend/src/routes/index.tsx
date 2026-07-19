@@ -89,10 +89,9 @@ function Dashboard() {
     if (!confirm("Are you sure you want to delete this handover?")) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${apiUrl}/handovers`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handover_id: id })
+      const res = await fetch(`${apiUrl}/handovers?action=delete&handover_id=${encodeURIComponent(id)}`, {
+        method: 'GET',
+        cache: 'no-store',
       });
       const text = await res.text();
       if (res.ok && text.includes("Deleted successfully")) {
@@ -114,18 +113,20 @@ function Dashboard() {
   const handleSave = async (id: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${apiUrl}/handovers`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handover_id: id,
-          situation: editData.situation || '',
-          background: editData.background || '',
-          assessment: editData.assessment || '',
-          recommendation: editData.recommendation || '',
-          patient_id: editData.patient_id || '',
-          doctor_name: editData.doctor_name || ''
-        })
+      const params = new URLSearchParams({
+        action: 'edit',
+        handover_id: id,
+        situation: editData.situation || '',
+        background: editData.background || '',
+        assessment: editData.assessment || '',
+        recommendation: editData.recommendation || '',
+        patient_id: editData.patient_id || '',
+        doctor_name: editData.doctor_name || ''
+      });
+      
+      const res = await fetch(`${apiUrl}/handovers?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
       });
       
       const text = await res.text();
