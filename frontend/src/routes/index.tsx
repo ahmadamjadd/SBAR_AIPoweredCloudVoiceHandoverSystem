@@ -91,11 +91,14 @@ function Dashboard() {
       const apiUrl = import.meta.env.VITE_API_URL;
       const res = await fetch(`${apiUrl}/handovers?action=delete&handover_id=${encodeURIComponent(id)}`, {
         method: 'GET',
+        cache: 'no-store',
       });
-      if (res.ok) {
+      const text = await res.text();
+      console.log("Delete Response:", text);
+      if (res.ok && text.includes("Deleted successfully")) {
         setHandovers(prev => prev.filter(h => h.handover_id !== id));
       } else {
-        alert("Failed to delete handover");
+        alert("Failed to delete handover: " + text);
       }
     } catch (e) {
       console.error(e);
@@ -124,13 +127,17 @@ function Dashboard() {
       
       const res = await fetch(`${apiUrl}/handovers?${params.toString()}`, {
         method: 'GET',
+        cache: 'no-store',
       });
       
-      if (res.ok) {
+      const text = await res.text();
+      console.log("Edit Response:", text);
+      
+      if (res.ok && text.includes("Updated successfully")) {
         setHandovers(prev => prev.map(h => h.handover_id === id ? editData : h));
         setEditingId(null);
       } else {
-        alert("Failed to update handover");
+        alert("Failed to update handover: " + text);
       }
     } catch (e) {
       console.error(e);
@@ -146,7 +153,7 @@ function Dashboard() {
           throw new Error("VITE_API_URL is undefined in .env");
         }
         
-        const response = await fetch(`${apiUrl}/handovers`);
+        const response = await fetch(`${apiUrl}/handovers`, { cache: 'no-store' });
         if (response.ok) {
           const data = await response.json();
           setHandovers(data.handovers || []);
