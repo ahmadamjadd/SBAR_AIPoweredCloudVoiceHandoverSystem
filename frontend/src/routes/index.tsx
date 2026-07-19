@@ -105,7 +105,7 @@ function Dashboard() {
   }, []);
 
   const completedCount = handovers.filter(h => h.status?.toUpperCase() === 'COMPLETE').length;
-  const processingCount = handovers.filter(h => ['UPLOADED', 'TRANSCRIBING', 'EXTRACTING'].includes(h.status?.toUpperCase() || '')).length;
+  const processingCount = handovers.filter(h => h.status?.toUpperCase() === 'PROCESSING').length;
   const failedCount = handovers.filter(h => h.status?.toUpperCase() === 'FAILED').length;
 
   const dynamicStats = [
@@ -232,8 +232,14 @@ function Dashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                      h.status?.toUpperCase() === 'FAILED' ? 'bg-destructive-soft text-destructive' :
+                      h.status?.toUpperCase() === 'COMPLETE' ? 'bg-accent-soft text-accent' :
+                      'bg-warning-soft text-warning-foreground'
+                    }`}>
+                      {h.status?.toUpperCase() === 'FAILED' ? <AlertTriangle className="h-3.5 w-3.5" /> : 
+                       h.status?.toUpperCase() === 'COMPLETE' ? <CheckCircle2 className="h-3.5 w-3.5" /> :
+                       <Clock className="h-3.5 w-3.5" />}
                       {h.status}
                     </span>
                     <span className="text-xs text-muted-foreground">{h.created_at ? getTimeAgo(h.created_at) : 'Just now'}</span>

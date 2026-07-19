@@ -41,7 +41,6 @@ def lambda_handler(event, context):
         file_key = f"audio/{handover_id}.webm"
         
         # Generate the presigned URL
-        # Conditions: We expect the file to be uploaded as a PUT request
         presigned_url = s3_client.generate_presigned_url(
             ClientMethod='put_object',
             Params={
@@ -51,6 +50,21 @@ def lambda_handler(event, context):
             },
             ExpiresIn=300 # URL expires in 5 minutes
         )
+        
+        # --- NEW: Create a "Processing" record in DynamoDB ---
+        import time
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table('sbar-handovers')
+        table.put_item(Item={
+            'handover_id': handover_id,
+            'status': 'Processing',
+            'created_at': int(time.time()),
+            'patient_id': 'Processing Audio...',
+            'situation': 'AI is analyzing the audio...',
+            'background': '...',
+            'assessment': '...',
+            'recommendation': '...'
+        })
         
         response_data = {
             'upload_url': presigned_url,
