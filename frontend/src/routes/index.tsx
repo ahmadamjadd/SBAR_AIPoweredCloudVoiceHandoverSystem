@@ -94,10 +94,10 @@ function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handover_id: id })
       });
-      if (res.ok) {
+      const text = await res.text();
+      if (res.ok && text.includes("Deleted successfully")) {
         setHandovers(prev => prev.filter(h => h.handover_id !== id));
       } else {
-        const text = await res.text();
         alert("Failed to delete handover: " + text);
       }
     } catch (e) {
@@ -128,11 +128,11 @@ function Dashboard() {
         })
       });
       
-      if (res.ok) {
+      const text = await res.text();
+      if (res.ok && text.includes("Updated successfully")) {
         setHandovers(prev => prev.map(h => h.handover_id === id ? editData : h));
         setEditingId(null);
       } else {
-        const text = await res.text();
         alert("Failed to update handover: " + text);
       }
     } catch (e) {
