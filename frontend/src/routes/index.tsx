@@ -90,18 +90,14 @@ function Dashboard() {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       const res = await fetch(`${apiUrl}/handovers`, {
-        method: 'GET',
-        cache: 'no-store',
-        headers: {
-          'x-action': 'delete',
-          'x-handover-id': encodeURIComponent(id)
-        }
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handover_id: id })
       });
-      const text = await res.text();
-      console.log("Delete Response:", text);
-      if (res.ok && text.includes("Deleted successfully")) {
+      if (res.ok) {
         setHandovers(prev => prev.filter(h => h.handover_id !== id));
       } else {
+        const text = await res.text();
         alert("Failed to delete handover: " + text);
       }
     } catch (e) {
@@ -118,29 +114,25 @@ function Dashboard() {
   const handleSave = async (id: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      
       const res = await fetch(`${apiUrl}/handovers`, {
-        method: 'GET',
-        cache: 'no-store',
-        headers: {
-          'x-action': 'edit',
-          'x-handover-id': encodeURIComponent(id),
-          'x-situation': encodeURIComponent(editData.situation || ''),
-          'x-background': encodeURIComponent(editData.background || ''),
-          'x-assessment': encodeURIComponent(editData.assessment || ''),
-          'x-recommendation': encodeURIComponent(editData.recommendation || ''),
-          'x-patient-id': encodeURIComponent(editData.patient_id || ''),
-          'x-doctor-name': encodeURIComponent(editData.doctor_name || '')
-        }
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handover_id: id,
+          situation: editData.situation || '',
+          background: editData.background || '',
+          assessment: editData.assessment || '',
+          recommendation: editData.recommendation || '',
+          patient_id: editData.patient_id || '',
+          doctor_name: editData.doctor_name || ''
+        })
       });
       
-      const text = await res.text();
-      console.log("Edit Response:", text);
-      
-      if (res.ok && text.includes("Updated successfully")) {
+      if (res.ok) {
         setHandovers(prev => prev.map(h => h.handover_id === id ? editData : h));
         setEditingId(null);
       } else {
+        const text = await res.text();
         alert("Failed to update handover: " + text);
       }
     } catch (e) {
