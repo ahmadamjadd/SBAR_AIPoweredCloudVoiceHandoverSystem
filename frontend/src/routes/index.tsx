@@ -89,9 +89,13 @@ function Dashboard() {
     if (!confirm("Are you sure you want to delete this handover?")) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${apiUrl}/handovers?action=delete&handover_id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`${apiUrl}/handovers`, {
         method: 'GET',
         cache: 'no-store',
+        headers: {
+          'x-action': 'delete',
+          'x-handover-id': encodeURIComponent(id)
+        }
       });
       const text = await res.text();
       console.log("Delete Response:", text);
@@ -114,20 +118,20 @@ function Dashboard() {
   const handleSave = async (id: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const params = new URLSearchParams({
-        action: 'edit',
-        handover_id: id,
-        situation: editData.situation || '',
-        background: editData.background || '',
-        assessment: editData.assessment || '',
-        recommendation: editData.recommendation || '',
-        patient_id: editData.patient_id || '',
-        doctor_name: editData.doctor_name || ''
-      });
       
-      const res = await fetch(`${apiUrl}/handovers?${params.toString()}`, {
+      const res = await fetch(`${apiUrl}/handovers`, {
         method: 'GET',
         cache: 'no-store',
+        headers: {
+          'x-action': 'edit',
+          'x-handover-id': encodeURIComponent(id),
+          'x-situation': encodeURIComponent(editData.situation || ''),
+          'x-background': encodeURIComponent(editData.background || ''),
+          'x-assessment': encodeURIComponent(editData.assessment || ''),
+          'x-recommendation': encodeURIComponent(editData.recommendation || ''),
+          'x-patient-id': encodeURIComponent(editData.patient_id || ''),
+          'x-doctor-name': encodeURIComponent(editData.doctor_name || '')
+        }
       });
       
       const text = await res.text();
