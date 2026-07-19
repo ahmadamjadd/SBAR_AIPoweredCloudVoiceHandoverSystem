@@ -89,8 +89,8 @@ function Dashboard() {
     if (!confirm("Are you sure you want to delete this handover?")) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${apiUrl}/handovers?handover_id=${id}`, {
-        method: 'DELETE',
+      const res = await fetch(`${apiUrl}/handovers?action=delete&handover_id=${encodeURIComponent(id)}`, {
+        method: 'GET',
       });
       if (res.ok) {
         setHandovers(prev => prev.filter(h => h.handover_id !== id));
@@ -111,11 +111,21 @@ function Dashboard() {
   const handleSave = async (id: string) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${apiUrl}/handovers`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editData),
+      const params = new URLSearchParams({
+        action: 'edit',
+        handover_id: id,
+        situation: editData.situation || '',
+        background: editData.background || '',
+        assessment: editData.assessment || '',
+        recommendation: editData.recommendation || '',
+        patient_id: editData.patient_id || '',
+        doctor_name: editData.doctor_name || ''
       });
+      
+      const res = await fetch(`${apiUrl}/handovers?${params.toString()}`, {
+        method: 'GET',
+      });
+      
       if (res.ok) {
         setHandovers(prev => prev.map(h => h.handover_id === id ? editData : h));
         setEditingId(null);
