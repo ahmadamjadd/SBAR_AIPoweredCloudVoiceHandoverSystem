@@ -276,8 +276,8 @@ function Dashboard() {
             <div className="text-muted-foreground py-10">No handovers found.</div>
           )}
           {handovers.map((h) => {
-            const patientIdStr = typeof h.patient_id === 'string' ? h.patient_id : '';
-            const patientNum = patientIdStr.match(/\d+/)?.[0] || '?';
+            const patientIdStr = typeof h.patient_id === 'string' && h.patient_id.trim() ? h.patient_id : 'Unknown Patient';
+            const initials = patientIdStr.charAt(0).toUpperCase();
             return (
               <article
                 key={h.handover_id || Math.random().toString()}
@@ -286,10 +286,19 @@ function Dashboard() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-soft text-sm font-semibold text-primary">
-                      P{patientNum}
+                      {initials}
                     </div>
                     <div>
-                      <div className="text-sm font-semibold">{h.patient_id || 'Unknown Patient'}</div>
+                      {editingId === h.handover_id ? (
+                        <input
+                          autoFocus
+                          className="text-sm font-semibold bg-background border border-primary/40 focus:ring-2 focus:ring-primary/20 rounded px-2 py-0.5 outline-none transition-all"
+                          value={editData.patient_id || ''}
+                          onChange={(e) => setEditData({...editData, patient_id: e.target.value})}
+                        />
+                      ) : (
+                        <div className="text-sm font-semibold">{h.patient_id || 'Unknown Patient'}</div>
+                      )}
                       <div className="text-xs text-muted-foreground">Bed 3</div>
                     </div>
                   </div>
@@ -308,58 +317,68 @@ function Dashboard() {
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <SbarBlock 
-                    letter="S" label="Situation" tone="primary" 
-                    text={editingId === h.handover_id ? editData.situation : (h.situation || 'Not available')} 
-                    isEditing={editingId === h.handover_id}
-                    onChange={(val) => setEditData({...editData, situation: val})}
-                  />
-                  <SbarBlock 
-                    letter="B" label="Background" tone="accent" 
-                    text={editingId === h.handover_id ? editData.background : (h.background || 'Not available')} 
-                    isEditing={editingId === h.handover_id}
-                    onChange={(val) => setEditData({...editData, background: val})}
-                  />
-                  <SbarBlock 
-                    letter="A" label="Assessment" tone="warning" 
-                    text={editingId === h.handover_id ? editData.assessment : (h.assessment || 'Not available')} 
-                    isEditing={editingId === h.handover_id}
-                    onChange={(val) => setEditData({...editData, assessment: val})}
-                  />
-                  <SbarBlock 
-                    letter="R" label="Recommendation" tone="destructive" 
-                    text={editingId === h.handover_id ? editData.recommendation : (h.recommendation || 'Not available')} 
-                    isEditing={editingId === h.handover_id}
-                    onChange={(val) => setEditData({...editData, recommendation: val})}
-                  />
-                </div>
+                {h.status?.toUpperCase() === 'PROCESSING' ? (
+                  <div className="mt-5 flex h-32 items-center justify-center rounded-2xl border border-dashed border-border/60 bg-surface-muted/30">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Clock className="h-4 w-4 animate-pulse" />
+                      Processing new handover...
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <SbarBlock 
+                      letter="S" label="Situation" tone="primary" 
+                      text={editingId === h.handover_id ? editData.situation : (h.situation || 'Not available')} 
+                      isEditing={editingId === h.handover_id}
+                      onChange={(val) => setEditData({...editData, situation: val})}
+                    />
+                    <SbarBlock 
+                      letter="B" label="Background" tone="accent" 
+                      text={editingId === h.handover_id ? editData.background : (h.background || 'Not available')} 
+                      isEditing={editingId === h.handover_id}
+                      onChange={(val) => setEditData({...editData, background: val})}
+                    />
+                    <SbarBlock 
+                      letter="A" label="Assessment" tone="warning" 
+                      text={editingId === h.handover_id ? editData.assessment : (h.assessment || 'Not available')} 
+                      isEditing={editingId === h.handover_id}
+                      onChange={(val) => setEditData({...editData, assessment: val})}
+                    />
+                    <SbarBlock 
+                      letter="R" label="Recommendation" tone="destructive" 
+                      text={editingId === h.handover_id ? editData.recommendation : (h.recommendation || 'Not available')} 
+                      isEditing={editingId === h.handover_id}
+                      onChange={(val) => setEditData({...editData, recommendation: val})}
+                    />
+                  </div>
+                )}
 
-                <div className="mt-5 flex items-center justify-between border-t border-border/40 pt-4">
-                  {editingId === h.handover_id ? (
-                    <>
-                      <button onClick={() => setEditingId(null)} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-                        <X className="h-4 w-4" /> Cancel
-                      </button>
-                      <button onClick={() => handleSave(h.handover_id)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90">
-                        <Save className="h-4 w-4" /> Save Changes
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => handleDelete(h.handover_id)} className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive transition-colors hover:opacity-80">
-                        <Trash2 className="h-4 w-4" /> Delete
-                      </button>
-                      <div className="flex gap-4">
-                        <button onClick={() => handleEdit(h)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent transition-colors hover:opacity-80">
-                          <Edit2 className="h-4 w-4" /> Edit
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-border/40 pt-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-[10px] text-accent">DR</span>
+                    {h.doctor_name || 'Unknown Doctor'}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {editingId === h.handover_id ? (
+                      <>
+                        <button onClick={() => setEditingId(null)} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                          <X className="h-4 w-4" /> Cancel
                         </button>
-                        <button className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:opacity-80">
-                          View details <ArrowUpRight className="h-4 w-4" />
+                        <button onClick={() => handleSave(h.handover_id)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90">
+                          <Save className="h-4 w-4" /> Save
                         </button>
-                      </div>
-                    </>
-                  )}
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => handleDelete(h.handover_id)} className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive transition-colors hover:opacity-80">
+                          <Trash2 className="h-4 w-4" /> Delete
+                        </button>
+                        <button onClick={() => handleEdit(h)} className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:opacity-80 ml-2">
+                          Edit <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </article>
             );
