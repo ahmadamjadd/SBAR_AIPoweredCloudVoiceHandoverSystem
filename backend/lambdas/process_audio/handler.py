@@ -28,9 +28,8 @@ def transcribe_audio_with_groq(file_path):
     # Add model field
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-large-v3\r\n'.encode('utf-8'))
     
-    # Add prompt field to force Roman Urdu (Minglish) output
-    prompt_text = "This is a medical handover in Minglish (Roman Urdu and English). Please transcribe exactly as spoken using Roman English alphabets. For example: patient number 7 ka bp bohat high rehta hai usko subah check karna."
-    body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="prompt"\r\n\r\n{prompt_text}\r\n'.encode('utf-8'))
+    # Add temperature field to match Groq Playground exactly
+    body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="temperature"\r\n\r\n0\r\n'.encode('utf-8'))
     
     # Add file field
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n'.encode('utf-8'))
