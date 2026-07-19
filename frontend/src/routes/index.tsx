@@ -7,6 +7,10 @@ import {
   Mic,
   TrendingUp,
   ArrowUpRight,
+  Trash2,
+  Edit2,
+  Save,
+  X,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 
@@ -78,6 +82,51 @@ function Dashboard() {
   const [handovers, setHandovers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState<any>({});
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this handover?")) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${apiUrl}/handovers?handover_id=${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setHandovers(prev => prev.filter(h => h.handover_id !== id));
+      } else {
+        alert("Failed to delete handover");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error deleting handover");
+    }
+  };
+
+  const handleEdit = (h: any) => {
+    setEditingId(h.handover_id);
+    setEditData({ ...h });
+  };
+
+  const handleSave = async (id: string) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${apiUrl}/handovers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editData),
+      });
+      if (res.ok) {
+        setHandovers(prev => prev.map(h => h.handover_id === id ? editData : h));
+        setEditingId(null);
+      } else {
+        alert("Failed to update handover");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error updating handover");
+    }
+  };
 
   useEffect(() => {
     const fetchHandovers = async () => {
@@ -247,16 +296,57 @@ function Dashboard() {
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <SbarBlock letter="S" label="Situation" tone="primary" text={h.situation || 'Not available'} />
-                  <SbarBlock letter="B" label="Background" tone="accent" text={h.background || 'Not available'} />
-                  <SbarBlock letter="A" label="Assessment" tone="warning" text={h.assessment || 'Not available'} />
-                  <SbarBlock letter="R" label="Recommendation" tone="destructive" text={h.recommendation || 'Not available'} />
+                  <SbarBlock 
+                    letter="S" label="Situation" tone="primary" 
+                    text={editingId === h.handover_id ? editData.situation : (h.situation || 'Not available')} 
+                    isEditing={editingId === h.handover_id}
+                    onChange={(val) => setEditData({...editData, situation: val})}
+                  />
+                  <SbarBlock 
+                    letter="B" label="Background" tone="accent" 
+                    text={editingId === h.handover_id ? editData.background : (h.background || 'Not available')} 
+                    isEditing={editingId === h.handover_id}
+                    onChange={(val) => setEditData({...editData, background: val})}
+                  />
+                  <SbarBlock 
+                    letter="A" label="Assessment" tone="warning" 
+                    text={editingId === h.handover_id ? editData.assessment : (h.assessment || 'Not available')} 
+                    isEditing={editingId === h.handover_id}
+                    onChange={(val) => setEditData({...editData, assessment: val})}
+                  />
+                  <SbarBlock 
+                    letter="R" label="Recommendation" tone="destructive" 
+                    text={editingId === h.handover_id ? editData.recommendation : (h.recommendation || 'Not available')} 
+                    isEditing={editingId === h.handover_id}
+                    onChange={(val) => setEditData({...editData, recommendation: val})}
+                  />
                 </div>
 
-                <div className="mt-5 flex justify-end">
-                  <button className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:opacity-80">
-                    View details <ArrowUpRight className="h-4 w-4" />
-                  </button>
+                <div className="mt-5 flex items-center justify-between border-t border-border/40 pt-4">
+                  {editingId === h.handover_id ? (
+                    <>
+                      <button onClick={() => setEditingId(null)} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                        <X className="h-4 w-4" /> Cancel
+                      </button>
+                      <button onClick={() => handleSave(h.handover_id)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90">
+                        <Save className="h-4 w-4" /> Save Changes
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => handleDelete(h.handover_id)} className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive transition-colors hover:opacity-80">
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </button>
+                      <div className="flex gap-4">
+                        <button onClick={() => handleEdit(h)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent transition-colors hover:opacity-80">
+                          <Edit2 className="h-4 w-4" /> Edit
+                        </button>
+                        <button className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:opacity-80">
+                          View details <ArrowUpRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </article>
             );
@@ -272,15 +362,19 @@ function SbarBlock({
   label,
   tone,
   text,
+  isEditing,
+  onChange,
 }: {
   letter: string;
   label: string;
   tone: keyof typeof toneMap;
   text: string;
+  isEditing?: boolean;
+  onChange?: (val: string) => void;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-muted/70 p-4">
-      <div className="flex items-center gap-2.5">
+    <div className="rounded-2xl bg-surface-muted/70 p-4 flex flex-col h-full">
+      <div className="flex items-center gap-2.5 mb-2.5">
         <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${toneMap[tone]}`}>
           {letter}
         </div>
@@ -288,7 +382,16 @@ function SbarBlock({
           {label}
         </div>
       </div>
-      <p className="mt-2.5 text-sm leading-relaxed text-foreground/85">{text}</p>
+      {isEditing ? (
+        <textarea 
+          className="w-full flex-grow rounded-xl border border-border/60 bg-background p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+          value={text}
+          onChange={(e) => onChange?.(e.target.value)}
+          rows={3}
+        />
+      ) : (
+        <p className="text-sm leading-relaxed text-foreground/85">{text}</p>
+      )}
     </div>
   );
 }

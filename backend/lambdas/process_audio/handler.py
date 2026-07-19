@@ -4,8 +4,6 @@ import boto3
 import urllib.request
 import time
 import logging
-from typing import TypedDict, Optional
-from langgraph.graph import StateGraph, START, END
 
 # Configure logging
 logger = logging.getLogger()
@@ -16,32 +14,28 @@ s3_client = boto3.client('s3')
 bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb')
 
-# Define our Agentic State
-class HandoverState(TypedDict):
-    handover_id: str
-    tmp_file_path: str
-    raw_transcript: Optional[str]
-    edited_transcript: Optional[str]
-    draft_sbar: Optional[dict]
-    validation_feedback: Optional[str]
-    is_valid: bool
-    validation_attempts: int
-
-# --- NODE 1: Transcription (Groq Whisper) ---
-def transcribe_node(state: HandoverState) -> dict:
-    logger.info("NODE: transcribe_node")
+def transcribe_audio_with_groq(file_path):
+    """Manually constructs a multipart/form-data request to Groq Whisper API using standard library."""
     groq_api_key = os.environ.get('GROQ_API_KEY')
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY environment variable is missing.")
 
+    logger.info("Starting Groq Whisper transcription...")
+    
     boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
     body_parts = []
+    
+    # Add model field
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-large-v3\r\n'.encode('utf-8'))
-    prompt_text = "Medical handover in Minglish/English. Terms: BP, HR, IV, Vancomycin, Amoxicillin, Cardiology, ICU, Ward, Dr. Vascianne."
+    
+    # Add prompt field to force Roman Urdu (Minglish) output
+    prompt_text = "This is a medical handover in Minglish (Roman Urdu and English). Please transcribe exactly as spoken using Roman English alphabets. For example: patient number 7 ka bp bohat high rehta hai usko subah check karna."
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="prompt"\r\n\r\n{prompt_text}\r\n'.encode('utf-8'))
+    
+    # Add file field
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n'.encode('utf-8'))
     
-    with open(state["tmp_file_path"], 'rb') as f:
+    with open(file_path, 'rb') as f:
         body_parts.append(f.read())
         
     body_parts.append(f'\r\n--{boundary}--\r\n'.encode('utf-8'))
@@ -50,54 +44,31 @@ def transcribe_node(state: HandoverState) -> dict:
     headers = {
         'Authorization': f'Bearer {groq_api_key}',
         'Content-Type': f'multipart/form-data; boundary={boundary}',
-        'User-Agent': 'SBAR-Handover-App/1.0'
+        'User-Agent': 'SBAR-Handover-App/1.0' # Required to bypass Cloudflare bot protection
     }
     
     req = urllib.request.Request('https://api.groq.com/openai/v1/audio/transcriptions', data=payload, headers=headers)
-    response = urllib.request.urlopen(req, timeout=30)
-    result = json.loads(response.read().decode('utf-8'))
     
-    return {"raw_transcript": result.get('text', '')}
+    try:
+        response = urllib.request.urlopen(req, timeout=30)
+        result = json.loads(response.read().decode('utf-8'))
+        return result.get('text', '')
+    except Exception as e:
+        logger.error(f"Groq API Error: {str(e)}")
+        raise
 
-# --- Helper: Bedrock Converse API ---
-def call_bedrock_llm(prompt: str, temperature=0.1) -> str:
-    response = bedrock_client.converse(
-        modelId="amazon.nova-lite-v1:0",
-        messages=[{"role": "user", "content": [{"text": prompt}]}],
-        inferenceConfig={"maxTokens": 1000, "temperature": temperature}
-    )
-    return response['output']['message']['content'][0]['text'].strip()
-
-# --- NODE 2: Clinical Editor ---
-def clinical_editor_node(state: HandoverState) -> dict:
-    logger.info("NODE: clinical_editor_node")
-    prompt = f"""You are an expert clinical pharmacist and medical editor. 
-Below is an AI-generated transcript of a doctor's shift handover. It contains phonetic mistakes (e.g., mishearing drug names or medical terms).
-Your job is to read it, identify clinical impossibilities or obvious phonetic errors, and output the corrected transcript.
-Do not change the meaning or structure, just fix the medical terms and grammar.
-
-Raw AI Transcript:
-{state["raw_transcript"]}
-
-Output ONLY the corrected transcript text, nothing else."""
-
-    corrected_text = call_bedrock_llm(prompt)
-    logger.info(f"Edited Transcript: {corrected_text}")
-    return {"edited_transcript": corrected_text}
-
-# --- NODE 3: Extractor ---
-def extract_sbar_node(state: HandoverState) -> dict:
-    logger.info(f"NODE: extract_sbar_node (Attempt {state.get('validation_attempts', 0) + 1})")
+def generate_sbar_with_bedrock(transcript):
+    """Sends the transcript to Amazon Nova Lite via Amazon Bedrock to extract SBAR JSON."""
+    logger.info("Starting Bedrock SBAR extraction using Amazon Nova...")
     
-    feedback_context = ""
-    if state.get("validation_feedback"):
-        feedback_context = f"\n\nWARNING: Your previous attempt had errors. Please fix them based on this feedback:\n{state['validation_feedback']}"
+    prompt = f"""You are a clinical AI assistant. You are given a transcript of a shift handover note which contains a mix of English and Urdu (in Arabic script).
 
-    prompt = f"""Convert this clinical handover transcript into a structured SBAR format.
-You must return ONLY a valid JSON object matching this schema.
+First, read the transcript carefully. Pay special attention to Urdu grammar context (for example, "kal jana hai" means "needs to go TOMORROW", whereas "kal gaya tha" means "went YESTERDAY").
 
+Then, convert this transcript into a structured SBAR format.
+You must return ONLY a valid JSON object matching this schema without any other text:
 {{
-  "roman_minglish_transcript": "The exact original transcript text",
+  "roman_minglish_transcript": "Rewrite the exact original transcript here, but convert ALL Urdu/Hindi script into Roman English alphabets (Minglish). Do not translate the Urdu words to English here, just transliterate them.",
   "situation": "brief statement of the problem",
   "background": "brief history and context",
   "assessment": "what you think the problem is",
@@ -107,129 +78,95 @@ You must return ONLY a valid JSON object matching this schema.
 }}
 
 Transcript:
-{state["edited_transcript"]}{feedback_context}"""
+{transcript}"""
 
-    content = call_bedrock_llm(prompt)
-    logger.info(f"Raw LLM Extractor Output: {content}")
-    
-    start_idx = content.find('{')
-    end_idx = content.rfind('}') + 1
-    
-    if start_idx == -1 or end_idx <= start_idx:
-        logger.error("LLM failed to return a JSON object.")
-        # Fallback empty SBAR if LLM refuses to answer
-        draft_json = {
-            "roman_minglish_transcript": state.get("edited_transcript", ""),
-            "situation": "AI Parsing Error",
-            "background": "The AI model returned text that was not valid JSON.",
-            "assessment": "Please check CloudWatch logs.",
-            "recommendation": "Review the raw transcript.",
-            "patient_id": "Unknown Patient",
-            "doctor_name": "Unknown Doctor"
-        }
-    else:
-        try:
-            draft_json = json.loads(content[start_idx:end_idx])
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON Parse Error: {str(e)}. Content: {content[start_idx:end_idx]}")
-            raise
-    return {
-        "draft_sbar": draft_json, 
-        "validation_attempts": state.get("validation_attempts", 0) + 1
-    }
-
-# --- NODE 4: Validator (Chief Resident) ---
-def validate_node(state: HandoverState) -> dict:
-    logger.info("NODE: validate_node")
-    
-    # If we loop too many times, just accept it to prevent infinite loops
-    if state["validation_attempts"] >= 3:
-        logger.warning("Max validation attempts reached. Forcing valid.")
-        return {"is_valid": True}
-
-    prompt = f"""You are the Chief Resident reviewing a junior doctor's SBAR notes.
-Compare the original transcript against the drafted SBAR JSON.
-Check strictly for:
-1. Did they hallucinate or change a medication name or dosage?
-2. Did they miss critical numerical data (BP, HR, Bed Number, Patient ID)?
-
-Transcript: {state["edited_transcript"]}
-Drafted SBAR: {json.dumps(state["draft_sbar"])}
-
-If it is completely accurate, reply ONLY with the word "PASS".
-If there are clinical errors or omissions, reply with "FAIL: " followed by the feedback on what to fix."""
-
-    evaluation = call_bedrock_llm(prompt, temperature=0.0)
-    
-    if evaluation.strip().upper() == "PASS":
-        return {"is_valid": True, "validation_feedback": None}
-    else:
-        logger.info(f"Validation Failed: {evaluation}")
-        return {"is_valid": False, "validation_feedback": evaluation}
-
-# --- Graph Routing ---
-def route_validation(state: HandoverState) -> str:
-    if state["is_valid"]:
-        return "end"
-    return "extract"
-
-# --- Build the Graph ---
-workflow = StateGraph(HandoverState)
-workflow.add_node("transcribe", transcribe_node)
-workflow.add_node("editor", clinical_editor_node)
-workflow.add_node("extract", extract_sbar_node)
-workflow.add_node("validate", validate_node)
-
-workflow.add_edge(START, "transcribe")
-workflow.add_edge("transcribe", "editor")
-workflow.add_edge("editor", "extract")
-workflow.add_edge("extract", "validate")
-workflow.add_conditional_edges("validate", route_validation, {"end": END, "extract": "extract"})
-
-app = workflow.compile()
+    try:
+        # Using the modern Converse API which is much cleaner
+        response = bedrock_client.converse(
+            modelId="amazon.nova-lite-v1:0",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"text": prompt}]
+                }
+            ],
+            inferenceConfig={
+                "maxTokens": 4096,
+                "temperature": 0.1
+            }
+        )
+        
+        content = response['output']['message']['content'][0]['text'].strip()
+        logger.info(f"Raw LLM Extractor Output: {content}")
+        
+        # Clean up in case the model adds markdown blocks
+        if content.startswith('```json'):
+            content = content[7:-3]
+        elif content.startswith('```'):
+            content = content[3:-3]
+            
+        start_idx = content.find('{')
+        end_idx = content.rfind('}') + 1
+        
+        if start_idx == -1 or end_idx <= start_idx:
+            raise ValueError(f"LLM failed to return valid JSON. Output was: {content}")
+            
+        return json.loads(content[start_idx:end_idx])
+    except Exception as e:
+        logger.error(f"Bedrock API Error: {str(e)}")
+        raise
 
 def lambda_handler(event, context):
     logger.info(f"Received S3 Event: {json.dumps(event)}")
+    
     try:
+        # 1. Parse the S3 Event
         record = event['Records'][0]
         bucket_name = record['s3']['bucket']['name']
         object_key = record['s3']['object']['key']
-        handover_id = object_key.split('/')[-1].split('.')[0]
         
+        # The handover_id is the filename without extension
+        # e.g., "audio/123-456.webm" -> "123-456"
+        handover_id = object_key.split('/')[-1].split('.')[0]
+        logger.info(f"Processing Handover ID: {handover_id}")
+        
+        # 2. Download audio to Lambda's temporary storage
         tmp_file_path = f"/tmp/{handover_id}.webm"
         s3_client.download_file(bucket_name, object_key, tmp_file_path)
         
-        # Initialize State
-        initial_state = {
-            "handover_id": handover_id,
-            "tmp_file_path": tmp_file_path,
-            "validation_attempts": 0,
-            "is_valid": False
-        }
+        # 3. Transcribe audio using Groq Whisper
+        transcript = transcribe_audio_with_groq(tmp_file_path)
+        logger.info(f"Transcript: {transcript}")
         
-        # Execute LangGraph Workflow
-        logger.info("Invoking LangGraph Workflow...")
-        final_state = app.invoke(initial_state)
+        if not transcript:
+            raise ValueError("Transcription returned empty text.")
+            
+        # 4. Generate SBAR JSON using Bedrock
+        sbar_data = generate_sbar_with_bedrock(transcript)
+        logger.info("Successfully generated SBAR JSON")
         
-        # Save to DynamoDB
-        sbar_data = final_state["draft_sbar"]
-        minglish_transcript = sbar_data.pop('roman_minglish_transcript', final_state["raw_transcript"])
+        # 5. Save to DynamoDB
+        table = dynamodb.Table('sbar-handovers')
+        
+        # We will extract the transliterated transcript from the LLM output
+        minglish_transcript = sbar_data.pop('roman_minglish_transcript', transcript)
         
         item = {
             'handover_id': handover_id,
             'status': 'Complete',
             'created_at': int(time.time()),
-            'raw_transcript': minglish_transcript,
-            'edited_transcript': final_state["edited_transcript"],
+            'raw_transcript': minglish_transcript, # This will now be pure Roman English alphabets
             **sbar_data
         }
-        dynamodb.Table('sbar-handovers').put_item(Item=item)
-        logger.info("Successfully saved validated SBAR to DynamoDB")
+        table.put_item(Item=item)
         
+        logger.info("Successfully saved to DynamoDB")
         return {"statusCode": 200, "body": "Processing complete"}
         
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
+        
+        # Fallback: Save failed status to DynamoDB if we got far enough to know the ID
         try:
             if 'handover_id' in locals():
                 dynamodb.Table('sbar-handovers').put_item(Item={
@@ -240,4 +177,5 @@ def lambda_handler(event, context):
                 })
         except:
             pass
+            
         raise e
