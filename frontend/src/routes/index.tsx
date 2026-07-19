@@ -124,6 +124,8 @@ function Dashboard() {
           assessment: editData.assessment || '',
           recommendation: editData.recommendation || '',
           patient_id: editData.patient_id || '',
+          patient_name: editData.patient_name || '',
+          bed_number: editData.bed_number || '',
           doctor_name: editData.doctor_name || ''
         })
       });
@@ -276,8 +278,8 @@ function Dashboard() {
             <div className="text-muted-foreground py-10">No handovers found.</div>
           )}
           {handovers.map((h) => {
-            const patientIdStr = typeof h.patient_id === 'string' && h.patient_id.trim() ? h.patient_id : 'Unknown Patient';
-            const initials = patientIdStr.charAt(0).toUpperCase();
+            const patientNameStr = typeof h.patient_name === 'string' && h.patient_name.trim() ? h.patient_name : (h.patient_id || 'Unknown Patient');
+            const initials = patientNameStr.charAt(0).toUpperCase();
             return (
               <article
                 key={h.handover_id || Math.random().toString()}
@@ -290,16 +292,37 @@ function Dashboard() {
                     </div>
                     <div>
                       {editingId === h.handover_id ? (
-                        <input
-                          autoFocus
-                          className="text-sm font-semibold bg-background border border-primary/40 focus:ring-2 focus:ring-primary/20 rounded px-2 py-0.5 outline-none transition-all"
-                          value={editData.patient_id || ''}
-                          onChange={(e) => setEditData({...editData, patient_id: e.target.value})}
-                        />
+                        <div className="flex flex-col gap-1.5">
+                          <input
+                            autoFocus
+                            placeholder="Patient Name"
+                            className="text-sm font-semibold bg-background border border-primary/40 focus:ring-2 focus:ring-primary/20 rounded px-2 py-0.5 outline-none transition-all"
+                            value={editData.patient_name || ''}
+                            onChange={(e) => setEditData({...editData, patient_name: e.target.value})}
+                          />
+                          <div className="flex gap-2">
+                            <input
+                              placeholder="Bed No."
+                              className="w-20 text-xs bg-background border border-border/60 rounded px-1.5 py-0.5 outline-none"
+                              value={editData.bed_number || ''}
+                              onChange={(e) => setEditData({...editData, bed_number: e.target.value})}
+                            />
+                            <input
+                              placeholder="ID"
+                              className="w-24 text-xs bg-background border border-border/60 rounded px-1.5 py-0.5 outline-none"
+                              value={editData.patient_id || ''}
+                              onChange={(e) => setEditData({...editData, patient_id: e.target.value})}
+                            />
+                          </div>
+                        </div>
                       ) : (
-                        <div className="text-sm font-semibold">{h.patient_id || 'Unknown Patient'}</div>
+                        <>
+                          <div className="text-sm font-semibold">{h.patient_name || h.patient_id || 'Unknown Patient'}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {h.bed_number ? `Bed ${h.bed_number}` : 'No Bed'} • ID: {h.patient_id || 'Unknown'}
+                          </div>
+                        </>
                       )}
-                      <div className="text-xs text-muted-foreground">Bed 3</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
