@@ -91,7 +91,6 @@ Return ONLY valid JSON.
 Schema:
 
 {{
-  "roman_minglish_transcript":"",
   "patient_name":"",
   "patient_id":"",
   "bed_number":"",
@@ -195,7 +194,6 @@ Return ONLY JSON.
 Schema
 
 {{
-"roman_minglish_transcript":"",
 "situation":"",
 "background":"",
 "assessment":"",
@@ -277,14 +275,11 @@ def lambda_handler(event, context):
         # 5. Save to DynamoDB
         table = dynamodb.Table('sbar-handovers')
         
-        # We will extract the transliterated transcript from the LLM output
-        minglish_transcript = sbar_data.pop('roman_minglish_transcript', transcript)
-        
         item = {
             'handover_id': handover_id,
             'status': 'Complete',
             'created_at': int(time.time()),
-            'raw_transcript': minglish_transcript, # This will now be pure Roman English alphabets
+            'raw_transcript': transcript, # Store original Whisper script
             **sbar_data
         }
         table.put_item(Item=item)
