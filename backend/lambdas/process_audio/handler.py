@@ -15,17 +15,16 @@ bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb')
 
 def transcribe_audio_with_groq(file_path):
-    """Transcribes audio using Groq Whisper while preserving medical wording."""
-
-    groq_api_key = os.environ.get("GROQ_API_KEY")
+    """Manually constructs a multipart/form-data request to Groq Whisper API using standard library."""
+    groq_api_key = os.environ.get('GROQ_API_KEY')
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY environment variable is missing.")
 
     logger.info("Starting Groq Whisper transcription...")
-
-    boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+    
+    boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
     body_parts = []
-
+    
     # Add model field
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-large-v3\r\n'.encode('utf-8'))
     
@@ -34,210 +33,90 @@ def transcribe_audio_with_groq(file_path):
     
     # Add file field
     body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n'.encode('utf-8'))
-
-    with open(file_path, "rb") as f:
+    
+    with open(file_path, 'rb') as f:
         body_parts.append(f.read())
-
-    body_parts.append(f"\r\n--{boundary}--\r\n".encode())
-
-    payload = b"".join(body_parts)
+        
+    body_parts.append(f'\r\n--{boundary}--\r\n'.encode('utf-8'))
+    payload = b''.join(body_parts)
 
     headers = {
-        "Authorization": f"Bearer {groq_api_key}",
-        "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "SBAR-Handover-App/1.0"
+        'Authorization': f'Bearer {groq_api_key}',
+        'Content-Type': f'multipart/form-data; boundary={boundary}',
+        'User-Agent': 'SBAR-Handover-App/1.0' # Required to bypass Cloudflare bot protection
     }
-
-    req = urllib.request.Request(
-        "https://api.groq.com/openai/v1/audio/transcriptions",
-        data=payload,
-        headers=headers
-    )
-
-    response = urllib.request.urlopen(req, timeout=60)
-
-    result = json.loads(response.read().decode())
-
-    return result.get("text", "")
+    
+    req = urllib.request.Request('https://api.groq.com/openai/v1/audio/transcriptions', data=payload, headers=headers)
+    
+    try:
+        response = urllib.request.urlopen(req, timeout=30)
+        result = json.loads(response.read().decode('utf-8'))
+        return result.get('text', '')
+    except Exception as e:
+        logger.error(f"Groq API Error: {str(e)}")
+        raise
 
 def generate_sbar_with_bedrock(transcript):
+    """Sends the transcript to Amazon Nova Lite via Amazon Bedrock to extract SBAR JSON."""
+    logger.info("Starting Bedrock SBAR extraction using Amazon Nova...")
+    
+    prompt = f"""You are a clinical AI assistant. You are given a transcript of a shift handover note which contains a mix of English and Urdu (in Arabic script).
 
-    logger.info("Starting Clinical Extraction...")
+First, read the transcript carefully. Pay special attention to Urdu grammar context.
 
-    extraction_prompt = f"""
-ROLE
-You are an AI clinical information extraction system.
+Then, convert this transcript into a structured SBAR format.
+CRITICAL RULE: While the input is in Urdu/Arabic script, YOUR ENTIRE JSON OUTPUT MUST BE IN PROFESSIONAL CLINICAL ENGLISH. You must translate patient names, doctor names, symptoms, and medical terms into English. Do not output any Urdu/Arabic characters.
 
-OBJECTIVE
-Extract ONLY information explicitly stated in the transcript.
-
-Never diagnose.
-Never infer.
-Never assume.
-Never guess.
-
-If information is not explicitly mentioned,
-return "Unknown".
-
-Preserve exact numbers, IDs, medicine names, and laboratory values.
-HOWEVER, you MUST translate all general text, patient names, and doctor names into English alphabets. Do not output any Arabic/Urdu script.
-
-Return ONLY valid JSON.
-
-Schema:
-
+You must return ONLY a valid JSON object matching this schema without any other text:
 {{
-  "patient_name":"",
-  "patient_id":"",
-  "bed_number":"",
-  "doctor_name":"",
-
-  "symptoms":[
-      {{
-          "text":"",
-          "evidence":""
-      }}
-  ],
-
-  "history":[
-      {{
-          "text":"",
-          "evidence":""
-      }}
-  ],
-
-  "medications":[
-      {{
-          "text":"",
-          "evidence":""
-      }}
-  ],
-
-  "investigations":[
-      {{
-          "text":"",
-          "evidence":""
-      }}
-  ],
-
-  "pending_tasks":[
-      {{
-          "text":"",
-          "evidence":""
-      }}
-  ]
+  "situation": "brief statement of the problem",
+  "background": "brief history and context (if none mentioned, write 'Not mentioned in handover.')",
+  "assessment": "what you think the problem is",
+  "recommendation": "what needs to be done",
+  "patient_name": "extract patient name if mentioned, else 'Unknown Patient'",
+  "patient_id": "extract patient ID or MR number if mentioned, else 'Unknown'",
+  "bed_number": "extract bed number if mentioned, else 'Unknown'",
+  "doctor_name": "extract doctor name if mentioned, else 'Unknown Doctor'"
 }}
 
 Transcript:
+{transcript}"""
 
-{transcript}
-"""
-
-    extraction_response = bedrock_client.converse(
-        modelId="amazon.nova-lite-v1:0",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "text": extraction_prompt
-                    }
-                ]
+    try:
+        # Using the modern Converse API which is much cleaner
+        response = bedrock_client.converse(
+            modelId="amazon.nova-lite-v1:0",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"text": prompt}]
+                }
+            ],
+            inferenceConfig={
+                "maxTokens": 4096,
+                "temperature": 0.1
             }
-        ],
-        inferenceConfig={
-            "temperature": 0,
-            "maxTokens": 4096
-        }
-    )
-
-    extraction = extraction_response["output"]["message"]["content"][0]["text"]
-
-    if extraction.startswith("```json"):
-        extraction = extraction[7:-3]
-    elif extraction.startswith("```"):
-        extraction = extraction[3:-3]
-
-    extraction_json = json.loads(
-        extraction[
-            extraction.find("{"):
-            extraction.rfind("}")+1
-        ]
-    )
-
-    logger.info("Clinical extraction completed.")
-
-    generation_prompt = f"""
-ROLE
-
-You are an SBAR formatter.
-
-You are NOT allowed to use the transcript.
-
-Use ONLY the extracted facts below.
-The facts may be in Urdu or Arabic script. YOU MUST TRANSLATE EVERYTHING INTO PROFESSIONAL CLINICAL ENGLISH.
-All output values MUST be in pure English. Never output Urdu or Arabic characters.
-
-Never invent information.
-Never infer medical diagnoses not stated.
-
-If a section cannot be generated from the extracted facts, return "Not mentioned in handover." instead of "Unknown", but try your best to logically place extracted facts (like history) into the Background section.
-
-Preserve clinical wording whenever possible, translated to English.
-
-Return ONLY JSON.
-
-Schema
-
-{{
-"situation":"",
-"background":"",
-"assessment":"",
-"recommendation":"",
-"patient_name":"",
-"patient_id":"",
-"bed_number":"",
-"doctor_name":""
-}}
-
-Extracted Facts:
-
-{json.dumps(extraction_json, indent=2)}
-"""
-
-    generation_response = bedrock_client.converse(
-        modelId="amazon.nova-lite-v1:0",
-        messages=[
-            {
-                "role":"user",
-                "content":[
-                    {
-                        "text":generation_prompt
-                    }
-                ]
-            }
-        ],
-        inferenceConfig={
-            "temperature":0,
-            "maxTokens":4096
-        }
-    )
-
-    output = generation_response["output"]["message"]["content"][0]["text"]
-
-    if output.startswith("```json"):
-        output = output[7:-3]
-    elif output.startswith("```"):
-        output = output[3:-3]
-
-    output_json = json.loads(
-        output[
-            output.find("{"):
-            output.rfind("}")+1
-        ]
-    )
-
-    return output_json
+        )
+        
+        content = response['output']['message']['content'][0]['text'].strip()
+        logger.info(f"Raw LLM Extractor Output: {content}")
+        
+        # Clean up in case the model adds markdown blocks
+        if content.startswith('```json'):
+            content = content[7:-3]
+        elif content.startswith('```'):
+            content = content[3:-3]
+            
+        start_idx = content.find('{')
+        end_idx = content.rfind('}') + 1
+        
+        if start_idx == -1 or end_idx <= start_idx:
+            raise ValueError(f"LLM failed to return valid JSON. Output was: {content}")
+            
+        return json.loads(content[start_idx:end_idx])
+    except Exception as e:
+        logger.error(f"Bedrock API Error: {str(e)}")
+        raise
 
 def lambda_handler(event, context):
     logger.info(f"Received S3 Event: {json.dumps(event)}")
