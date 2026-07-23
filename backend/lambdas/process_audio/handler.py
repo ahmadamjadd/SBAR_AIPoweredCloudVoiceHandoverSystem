@@ -69,10 +69,10 @@ CRITICAL RULE: While the input is in Urdu/Arabic script, YOUR ENTIRE JSON OUTPUT
 
 You must return ONLY a valid JSON object matching this schema without any other text:
 {{
-  "situation": "brief statement of the problem",
-  "background": "brief history and context (if none mentioned, write 'Not mentioned in handover.')",
-  "assessment": "what you think the problem is",
-  "recommendation": "what needs to be done",
+  "situation": "Write a highly detailed, complete professional sentence describing the patient's current situation, including their name, bed number, and main complaint.",
+  "background": "Write a highly detailed, complete professional sentence describing the patient's medical history, past context, or underlying conditions. If absolutely none is mentioned, write 'The patient has no specific background medical history mentioned in this handover.'",
+  "assessment": "Write a highly detailed, complete professional sentence giving the clinical assessment, observations, and current status of the problem.",
+  "recommendation": "Write a highly detailed, complete professional sentence stating the recommended actions, pending tasks, or follow-ups required.",
   "patient_name": "extract patient name if mentioned, else 'Unknown Patient'",
   "patient_id": "extract patient ID or MR number if mentioned, else 'Unknown'",
   "bed_number": "extract bed number if mentioned, else 'Unknown'",
