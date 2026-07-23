@@ -26,25 +26,14 @@ def transcribe_audio_with_groq(file_path):
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     body_parts = []
 
-    fields = {
-        "model": "whisper-large-v3",
-        "temperature": "0",
-        "response_format": "json",
-        "prompt": "Hospital doctor shift handover. Medical terms, patient details, blood pressure, diagnosis, medications, mg, lab values, ward."
-    }
-
-    for key, value in fields.items():
-        body_parts.append(
-            f'--{boundary}\r\n'
-            f'Content-Disposition: form-data; name="{key}"\r\n\r\n'
-            f'{value}\r\n'.encode()
-        )
-
-    body_parts.append(
-        f'--{boundary}\r\n'
-        f'Content-Disposition: form-data; name="file"; filename="audio.webm"\r\n'
-        f'Content-Type: audio/webm\r\n\r\n'.encode()
-    )
+    # Add model field
+    body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-large-v3\r\n'.encode('utf-8'))
+    
+    # Add temperature field to match Groq Playground exactly
+    body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="temperature"\r\n\r\n0\r\n'.encode('utf-8'))
+    
+    # Add file field
+    body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n'.encode('utf-8'))
 
     with open(file_path, "rb") as f:
         body_parts.append(f.read())
