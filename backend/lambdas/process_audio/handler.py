@@ -79,12 +79,8 @@ Never guess.
 If information is not explicitly mentioned,
 return "Unknown".
 
-Preserve:
-- numbers
-- IDs
-- medicine names
-- laboratory values
-- doctor names
+Preserve exact numbers, IDs, medicine names, and laboratory values.
+HOWEVER, you MUST translate all general text, patient names, and doctor names into English alphabets. Do not output any Arabic/Urdu script.
 
 Return ONLY valid JSON.
 
@@ -179,15 +175,15 @@ You are an SBAR formatter.
 You are NOT allowed to use the transcript.
 
 Use ONLY the extracted facts below.
+The facts may be in Urdu or Arabic script. YOU MUST TRANSLATE EVERYTHING INTO PROFESSIONAL CLINICAL ENGLISH.
+All output values MUST be in pure English. Never output Urdu or Arabic characters.
 
 Never invent information.
+Never infer medical diagnoses not stated.
 
-Never infer.
+If a section cannot be generated from the extracted facts, return "Not mentioned in handover." instead of "Unknown", but try your best to logically place extracted facts (like history) into the Background section.
 
-If a section cannot be generated from the extracted facts,
-return "Unknown".
-
-Preserve clinical wording whenever possible.
+Preserve clinical wording whenever possible, translated to English.
 
 Return ONLY JSON.
 
