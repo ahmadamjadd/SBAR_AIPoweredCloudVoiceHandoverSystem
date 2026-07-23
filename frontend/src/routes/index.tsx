@@ -396,9 +396,11 @@ function Dashboard() {
                         <button onClick={() => handleDelete(h.handover_id)} className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive transition-colors hover:opacity-80">
                           <Trash2 className="h-4 w-4" /> Delete
                         </button>
-                        <button onClick={() => handleEdit(h)} className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:opacity-80 ml-2">
-                          Edit <Edit2 className="h-3.5 w-3.5" />
-                        </button>
+                        {h.status?.toUpperCase() !== 'PROCESSING' && (
+                          <button onClick={() => handleEdit(h)} className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:opacity-80 ml-2">
+                            Edit <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
