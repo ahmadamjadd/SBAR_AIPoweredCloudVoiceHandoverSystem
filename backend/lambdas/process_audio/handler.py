@@ -30,25 +30,7 @@ def transcribe_audio_with_groq(file_path):
         "model": "whisper-large-v3",
         "temperature": "0",
         "response_format": "json",
-        "prompt": """
-This is a hospital doctor-to-doctor shift handover from Pakistan.
-
-The speaker may switch between:
-- English
-- Urdu
-- Roman Urdu
-
-Rules:
-- Produce a VERBATIM transcript.
-- Never summarize.
-- Preserve all numbers exactly.
-- Preserve patient IDs exactly.
-- Preserve bed numbers exactly.
-- Preserve medicine names exactly.
-- Preserve laboratory values exactly.
-- Preserve doctor names exactly.
-- Preserve medical abbreviations exactly.
-"""
+        "prompt": "Hospital doctor shift handover. Medical terms, patient details, blood pressure, diagnosis, medications, mg, lab values, ward."
     }
 
     for key, value in fields.items():
